@@ -6,6 +6,8 @@ class FileTreeExplorer {
         this.originalContent = '';
         this.collapsedFolders = new Set(); // Track collapsed folders
         
+        // Initialize theme
+        this.initTheme();
         this.init();
     }
 
@@ -15,6 +17,11 @@ class FileTreeExplorer {
     }
 
     bindEvents() {
+        // Theme toggle
+        document.getElementById('themeToggle').addEventListener('click', () => {
+            this.toggleTheme();
+        });
+
         // Toolbar buttons
         document.getElementById('createFolderBtn').addEventListener('click', () => {
             this.showCreateModal('folder');
@@ -107,6 +114,35 @@ class FileTreeExplorer {
             this.showError('Failed to load file tree: ' + error.message);
         } finally {
             this.showLoading(false);
+        }
+    }
+
+    // Theme management methods
+    initTheme() {
+        const savedTheme = localStorage.getItem('file-tree-theme') || 'light';
+        this.setTheme(savedTheme);
+    }
+
+    toggleTheme() {
+        const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+        const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+        this.setTheme(newTheme);
+    }
+
+    setTheme(theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+        localStorage.setItem('file-tree-theme', theme);
+        
+        // Update theme toggle button icon
+        const themeToggle = document.getElementById('themeToggle');
+        const icon = themeToggle.querySelector('i');
+        
+        if (theme === 'dark') {
+            icon.className = 'fas fa-sun';
+            themeToggle.title = 'Switch to Light Theme';
+        } else {
+            icon.className = 'fas fa-moon';
+            themeToggle.title = 'Switch to Dark Theme';
         }
     }
 
