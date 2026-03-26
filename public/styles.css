@@ -167,10 +167,50 @@ header h1 i {
     text-align: center;
 }
 
+/* Collapsible folder styles */
+.tree-item.folder {
+    position: relative;
+}
+
+.tree-item .expand-icon {
+    position: absolute;
+    left: 0;
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 2px;
+    transition: all 0.2s ease;
+}
+
+.tree-item .expand-icon:hover {
+    background: #dee2e6;
+}
+
+.tree-item .expand-icon.expanded {
+    transform: rotate(90deg);
+}
+
+.tree-item.folder .folder-icon {
+    margin-left: 20px;
+}
+
 .tree-children {
     margin-left: 1rem;
     border-left: 1px dashed #dee2e6;
     padding-left: 0.5rem;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.tree-children.collapsed {
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    margin-bottom: 0;
+    opacity: 0;
 }
 
 /* Content area styles */

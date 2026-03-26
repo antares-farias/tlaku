@@ -4,6 +4,7 @@ class FileTreeExplorer {
         this.currentFile = null;
         this.isEditing = false;
         this.originalContent = '';
+        this.collapsedFolders = new Set(); // Track collapsed folders
         
         this.init();
     }
@@ -92,12 +93,33 @@ class FileTreeExplorer {
             itemElement.className = `tree-item ${item.type}`;
             itemElement.style.paddingLeft = `${level * 1}rem`;
             
-            const icon = item.type === 'folder' 
-                ? '<i class="fas fa-folder"></i>' 
-                : '<i class="fas fa-file-alt"></i>';
+            let itemHTML = '';
             
-            itemElement.innerHTML = `${icon} ${item.name}`;
+            if (item.type === 'folder') {
+                // Add expand/collapse icon for folders
+                const isCollapsed = this.collapsedFolders.has(item.path);
+                const expandIcon = isCollapsed ? 
+                    '<i class="fas fa-chevron-right"></i>' : 
+                    '<i class="fas fa-chevron-down"></i>';
+                
+                itemHTML = `
+                    <span class="expand-icon ${isCollapsed ? '' : 'expanded'}" data-path="${item.path}">
+                        ${expandIcon}
+                    </span>
+                    <i class="fas fa-folder folder-icon"></i>
+                    <span class="folder-name">${item.name}</span>
+                `;
+            } else {
+                itemHTML = `
+                    <span style="width: 20px;"></span>
+                    <i class="fas fa-file-alt"></i>
+                    <span>${item.name}</span>
+                `;
+            }
             
+            itemElement.innerHTML = itemHTML;
+            
+            // Add click event for item selection
             itemElement.addEventListener('click', (e) => {
                 e.stopPropagation();
                 this.selectItem(item, itemElement);
@@ -108,14 +130,28 @@ class FileTreeExplorer {
                 e.preventDefault();
                 this.showContextMenu(e, item);
             });
+            
+            // Add expand/collapse functionality for folders
+            if (item.type === 'folder') {
+                const expandIcon = itemElement.querySelector('.expand-icon');
+                expandIcon.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.toggleFolder(item.path, itemElement);
+                });
+            }
 
             container.appendChild(itemElement);
 
+            // Render children if folder is not collapsed
             if (item.children && item.children.length > 0) {
                 const childrenContainer = document.createElement('div');
-                childrenContainer.className = 'tree-children';
+                const isCollapsed = this.collapsedFolders.has(item.path);
+                childrenContainer.className = `tree-children ${isCollapsed ? 'collapsed' : ''}`;
                 container.appendChild(childrenContainer);
-                this.renderFileTree(item.children, childrenContainer, level + 1);
+                
+                if (!isCollapsed) {
+                    this.renderFileTree(item.children, childrenContainer, level + 1);
+                }
             }
         });
     }
@@ -136,6 +172,66 @@ class FileTreeExplorer {
             this.currentFile = item;
             this.loadFile(item.path);
         }
+    }
+
+    toggleFolder(folderPath, itemElement) {
+        const isCurrentlyCollapsed = this.collapsedFolders.has(folderPath);
+        const expandIcon = itemElement.querySelector('.expand-icon');
+        const childrenContainer = itemElement.nextElementSibling;
+        
+        if (isCurrentlyCollapsed) {
+            // Expand the folder
+            this.collapsedFolders.delete(folderPath);
+            expandIcon.classList.add('expanded');
+            expandIcon.innerHTML = '<i class="fas fa-chevron-down"></i>';
+            
+            if (childrenContainer && childrenContainer.classList.contains('tree-children')) {
+                childrenContainer.classList.remove('collapsed');
+                
+                // Re-render children if they haven't been rendered yet
+                if (childrenContainer.children.length === 0) {
+                    this.renderChildrenForFolder(folderPath, childrenContainer);
+                }
+            }
+        } else {
+            // Collapse the folder
+            this.collapsedFolders.add(folderPath);
+            expandIcon.classList.remove('expanded');
+            expandIcon.innerHTML = '<i class="fas fa-chevron-right"></i>';
+            
+            if (childrenContainer && childrenContainer.classList.contains('tree-children')) {
+                childrenContainer.classList.add('collapsed');
+            }
+        }
+    }
+
+    async renderChildrenForFolder(folderPath, container) {
+        try {
+            const response = await fetch('/api/tree');
+            const tree = await response.json();
+            
+            // Find the folder in the tree and render its children
+            const folder = this.findFolderInTree(tree, folderPath);
+            if (folder && folder.children) {
+                const level = (folderPath.split('/').length - 1) + 1;
+                this.renderFileTree(folder.children, container, level);
+            }
+        } catch (error) {
+            console.error('Failed to load folder contents:', error);
+        }
+    }
+
+    findFolderInTree(tree, targetPath) {
+        for (const item of tree) {
+            if (item.path === targetPath) {
+                return item;
+            }
+            if (item.children) {
+                const found = this.findFolderInTree(item.children, targetPath);
+                if (found) return found;
+            }
+        }
+        return null;
     }
 
     async loadFile(filePath) {
@@ -228,7 +324,7 @@ class FileTreeExplorer {
         document.getElementById('cancelBtn').classList.add('hidden');
     }
 
-    cancelen() {
+    cancelEdit() {
         document.getElementById('fileEditor').value = this.originalContent;
         this.exitEditMode();
     }
