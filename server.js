@@ -105,6 +105,86 @@ async function getFileTree(dirPath = BASE_DIR, basePath = '') {
   });
 }
 
+// Search through files and content
+async function searchFiles(searchTerm, dirPath = BASE_DIR, basePath = '', results = []) {
+  try {
+    const items = await fs.readdir(dirPath, { withFileTypes: true });
+    
+    for (const item of items) {
+      const relativePath = path.join(basePath, item.name).replace(/\\/g, '/');
+      const itemPath = path.join(dirPath, item.name);
+      
+      if (item.isDirectory()) {
+        // Search folder name
+        const nameMatches = item.name.toLowerCase().includes(searchTerm.toLowerCase());
+        const pathMatches = relativePath.toLowerCase().includes(searchTerm.toLowerCase());
+        
+        if (nameMatches || pathMatches) {
+          results.push({
+            name: item.name,
+            path: relativePath,
+            type: 'folder',
+            matchType: 'filename',
+            matchText: nameMatches ? item.name : relativePath
+          });
+        }
+        
+        // Recursively search subdirectory
+        await searchFiles(searchTerm, itemPath, relativePath, results);
+      } else {
+        const nameMatches = item.name.toLowerCase().includes(searchTerm.toLowerCase());
+        const pathMatches = relativePath.toLowerCase().includes(searchTerm.toLowerCase());
+        let contentMatches = false;
+        let matchedLines = [];
+        
+        // Only search content in text files (md, txt, js, html, css, etc.)
+        const textExtensions = ['.md', '.txt', '.js', '.html', '.css', '.json', '.xml', '.yml', '.yaml'];
+        const isTextFile = textExtensions.some(ext => 
+          item.name.toLowerCase().endsWith(ext)
+        );
+        
+        if (isTextFile) {
+          try {
+            const content = await fs.readFile(itemPath, 'utf8');
+            const lines = content.split('\n');
+            
+            lines.forEach((line, index) => {
+              if (line.toLowerCase().includes(searchTerm.toLowerCase())) {
+                contentMatches = true;
+                matchedLines.push({
+                  lineNumber: index + 1,
+                  text: line.trim(),
+                  context: lines.slice(Math.max(0, index - 1), index + 2).map(l => l.trim())
+                });
+              }
+            });
+          } catch (error) {
+            // Skip files that can't be read
+            console.error(`Error reading file ${itemPath}:`, error.message);
+          }
+        }
+        
+        if (nameMatches || pathMatches || contentMatches) {
+          const matchType = contentMatches ? 'content' : 'filename';
+          results.push({
+            name: item.name,
+            path: relativePath,
+            type: 'file',
+            matchType: matchType,
+            matchText: nameMatches ? item.name : pathMatches ? relativePath : '',
+            matchedLines: contentMatches ? matchedLines : [],
+            contentPreview: contentMatches ? matchedLines[0]?.text : null
+          });
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error searching directory:', error);
+  }
+  
+  return results;
+}
+
 // API Routes
 
 // Get file tree
@@ -116,6 +196,60 @@ app.get('/api/tree', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+// Search files and content
+app.get('/api/search', async (req, res) => {
+  try {
+    const { q, content } = req.query;
+    
+    if (!q || q.trim().length < 2) {
+      return res.status(400).json({ error: 'Search query must be at least 2 characters long' });
+    }
+    
+    const includeContent = content === 'true' || content === '1';
+    let results;
+    
+    if (includeContent) {
+      // Search both filenames and content
+      results = await searchFiles(q.trim());
+    } else {
+      // Search only filenames (original tree-based search)
+      const tree = await getFileTree();
+      results = filterTreeSearch(tree, q.trim());
+    }
+    
+    res.json({
+      searchTerm: q.trim(),
+      includeContent: includeContent,
+      results: results,
+      totalResults: results.length
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Helper function for filename-only search (for backward compatibility)
+function filterTreeSearch(tree, searchTerm, results = []) {
+  tree.forEach(item => {
+    const nameMatches = item.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const pathMatches = item.path.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    if (nameMatches || pathMatches) {
+      results.push({
+        ...item,
+        matchType: 'filename',
+        matchText: nameMatches ? item.name : item.path
+      });
+    }
+    
+    if (item.children) {
+      filterTreeSearch(item.children, searchTerm, results);
+    }
+  });
+  
+  return results;
+}
 
 // Create folder
 app.post('/api/folder', async (req, res) => {

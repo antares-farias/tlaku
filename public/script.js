@@ -5,6 +5,11 @@ class FileTreeExplorer {
         this.isEditing = false;
         this.originalContent = '';
         this.collapsedFolders = new Set(); // Track collapsed folders
+        this.originalTree = []; // Store the original tree data for search
+        this.filteredTree = []; // Store the filtered tree data
+        this.searchTerm = ''; // Current search term
+        this.searchResults = []; // Store API search results
+        this.searchTimeout = null; // For debouncing search requests
         
         // Initialize theme
         this.initTheme();
@@ -102,6 +107,30 @@ class FileTreeExplorer {
                 this.hideModal();
             }
         });
+
+        // Search functionality
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            this.handleSearchDebounced(e.target.value);
+        });
+
+        document.getElementById('clearSearchBtn').addEventListener('click', () => {
+            this.clearSearch();
+        });
+
+        // Content search checkbox
+        document.getElementById('searchContentCheckbox').addEventListener('change', (e) => {
+            // Re-search when content search option changes
+            if (this.searchTerm) {
+                this.handleSearchDebounced(this.searchTerm);
+            }
+        });
+
+        // Clear search on Escape key
+        document.getElementById('searchInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                this.clearSearch();
+            }
+        });
     }
 
     async loadFileTree() {
@@ -109,7 +138,9 @@ class FileTreeExplorer {
             this.showLoading(true);
             const response = await fetch('/api/tree');
             const tree = await response.json();
-            this.renderFileTree(tree);
+            this.originalTree = tree; // Store original data for searching
+            this.filteredTree = tree; // Initial filtered data is same as original
+            this.renderFileTreeWithHighlight(this.filteredTree);
         } catch (error) {
             this.showError('Failed to load file tree: ' + error.message);
         } finally {
@@ -637,6 +668,375 @@ class FileTreeExplorer {
     showSuccess(message) {
         // Simple success notification - in a real app, you'd use a proper notification system
         alert('Success: ' + message);
+    }
+
+    // Search functionality methods
+    handleSearchDebounced(searchTerm) {
+        // Clear previous timeout
+        if (this.searchTimeout) {
+            clearTimeout(this.searchTimeout);
+        }
+        
+        // Set new timeout for debouncing
+        this.searchTimeout = setTimeout(() => {
+            this.handleSearch(searchTerm);
+        }, 300); // 300ms debounce
+    }
+
+    async handleSearch(searchTerm) {
+        this.searchTerm = searchTerm.trim().toLowerCase();
+        
+        // Show/hide clear search button
+        const clearBtn = document.getElementById('clearSearchBtn');
+        if (this.searchTerm) {
+            clearBtn.classList.remove('hidden');
+        } else {
+            clearBtn.classList.add('hidden');
+        }
+        
+        // Clear search results and show original tree if no search term
+        if (!this.searchTerm) {
+            this.searchResults = [];
+            this.filteredTree = this.originalTree;
+            this.restoreCollapsedState();
+            this.renderFileTreeWithHighlight(this.filteredTree);
+            this.updateSearchStats();
+            return;
+        }
+        
+        // Check if content search is enabled
+        const includeContent = document.getElementById('searchContentCheckbox').checked;
+        
+        try {
+            this.showSearchLoading(true);
+            
+            // Use new search API
+            const response = await fetch(`/api/search?q=${encodeURIComponent(this.searchTerm)}&content=${includeContent}`);
+            const data = await response.json();
+            
+            if (response.ok) {
+                this.searchResults = data.results;
+                this.renderSearchResults();
+                this.updateSearchStatsAPI(data);
+            } else {
+                this.showError('Search failed: ' + data.error);
+                this.fallbackToLocalSearch();
+            }
+        } catch (error) {
+            this.showError('Search failed: ' + error.message);
+            this.fallbackToLocalSearch();
+        } finally {
+            this.showSearchLoading(false);
+        }
+    }
+    
+    fallbackToLocalSearch() {
+        // Fallback to original local search if API fails
+        if (this.searchTerm) {
+            this.filteredTree = this.filterTree(this.originalTree, this.searchTerm);
+            this.expandAllForSearch();
+            this.renderFileTreeWithHighlight(this.filteredTree);
+            this.updateSearchStats();
+        }
+    }
+    
+    renderSearchResults() {
+        const container = document.getElementById('fileTree');
+        container.innerHTML = '';
+        
+        if (this.searchResults.length === 0) {
+            container.innerHTML = '<div class="no-results">No results found</div>';
+            return;
+        }
+        
+        this.searchResults.forEach(item => {
+            const itemElement = document.createElement('div');
+            itemElement.className = `tree-item ${item.type}`;
+            
+            // Different styling based on match type
+            if (item.matchType === 'content') {
+                itemElement.classList.add('content-match');
+            } else {
+                itemElement.classList.add('filename-match');
+            }
+            
+            let itemHTML = '';
+            let displayName = this.highlightSearchTerm(item.name, this.searchTerm);
+            
+            if (item.type === 'folder') {
+                itemHTML = `
+                    <span style="width: 20px;"></span>
+                    <i class="fas fa-folder folder-icon"></i>
+                    <span class="folder-name">${displayName}</span>
+                `;
+            } else {
+                // Add match type indicator
+                const matchIcon = item.matchType === 'content' 
+                    ? '<i class="fas fa-file-alt" title="Content match"></i>' 
+                    : '<i class="fas fa-file-alt" title="Filename match"></i>';
+                    
+                itemHTML = `
+                    <span style="width: 20px;"></span>
+                    ${matchIcon}
+                    <span>${displayName}</span>
+                `;
+            }
+            
+            itemElement.innerHTML = itemHTML;
+            
+            // Add click event for item selection
+            itemElement.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.selectItem(item, itemElement);
+            });
+
+            // Add context menu for delete
+            itemElement.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                this.showContextMenu(e, item);
+            });
+
+            container.appendChild(itemElement);
+            
+            // Add content preview for content matches
+            if (item.matchType === 'content' && item.contentPreview) {
+                const previewElement = document.createElement('div');
+                previewElement.className = 'content-preview';
+                
+                const highlightedPreview = this.highlightSearchTerm(item.contentPreview, this.searchTerm);
+                previewElement.innerHTML = `
+                    <i class="fas fa-quote-left"></i> ${highlightedPreview}
+                `;
+                
+                container.appendChild(previewElement);
+            }
+        });
+    }
+    
+    showSearchLoading(show) {
+        const statsElement = document.getElementById('searchStats');
+        if (show) {
+            statsElement.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Searching...';
+            statsElement.classList.remove('hidden');
+        } else if (!this.searchTerm) {
+            statsElement.classList.add('hidden');
+        }
+    }
+    
+    updateSearchStatsAPI(data) {
+        const statsElement = document.getElementById('searchStats');
+        
+        if (!this.searchTerm) {
+            statsElement.classList.add('hidden');
+            return;
+        }
+        
+        const totalMatches = data.totalResults;
+        const contentMatches = data.results.filter(r => r.matchType === 'content').length;
+        const filenameMatches = totalMatches - contentMatches;
+        
+        if (totalMatches === 0) {
+            statsElement.innerHTML = 'No results found';
+        } else {
+            let statsText = `${totalMatches} result${totalMatches === 1 ? '' : 's'} found`;
+            
+            if (data.includeContent && (contentMatches > 0 || filenameMatches > 0)) {
+                const parts = [];
+                if (filenameMatches > 0) {
+                    parts.push(`${filenameMatches} filename`);
+                }
+                if (contentMatches > 0) {
+                    parts.push(`${contentMatches} content`);
+                }
+                statsText += ` (${parts.join(', ')})`;
+            }
+            
+            statsElement.innerHTML = statsText;
+        }
+        
+        statsElement.classList.remove('hidden');
+    }
+    
+    filterTree(tree, searchTerm) {
+        const filtered = [];
+        
+        tree.forEach(item => {
+            const nameMatches = item.name.toLowerCase().includes(searchTerm);
+            const pathMatches = item.path.toLowerCase().includes(searchTerm);
+            
+            if (item.type === 'folder') {
+                // For folders, include if name matches OR if any children match
+                let children = [];
+                if (item.children) {
+                    children = this.filterTree(item.children, searchTerm);
+                }
+                
+                if (nameMatches || pathMatches || children.length > 0) {
+                    filtered.push({
+                        ...item,
+                        children: children,
+                        matchesSearch: nameMatches || pathMatches
+                    });
+                }
+            } else {
+                // For files, include if name or path matches
+                if (nameMatches || pathMatches) {
+                    filtered.push({
+                        ...item,
+                        matchesSearch: true
+                    });
+                }
+            }
+        });
+        
+        return filtered;
+    }
+    
+    renderFileTreeWithHighlight(tree, container = null, level = 0) {
+        if (!container) {
+            container = document.getElementById('fileTree');
+            container.innerHTML = '';
+        }
+
+        tree.forEach(item => {
+            const itemElement = document.createElement('div');
+            itemElement.className = `tree-item ${item.type}`;
+            itemElement.style.paddingLeft = `${level * 1}rem`;
+            
+            let itemHTML = '';
+            let displayName = this.highlightSearchTerm(item.name, this.searchTerm);
+            
+            if (item.type === 'folder') {
+                // For search results, always show folders as expanded
+                const isCollapsed = this.searchTerm ? false : this.collapsedFolders.has(item.path);
+                const expandIcon = isCollapsed ? 
+                    '<i class="fas fa-chevron-right"></i>' : 
+                    '<i class="fas fa-chevron-down"></i>';
+                
+                itemHTML = `
+                    <span class="expand-icon ${isCollapsed ? '' : 'expanded'}" data-path="${item.path}">
+                        ${expandIcon}
+                    </span>
+                    <i class="fas fa-folder folder-icon"></i>
+                    <span class="folder-name">${displayName}</span>
+                `;
+            } else {
+                itemHTML = `
+                    <span style="width: 20px;"></span>
+                    <i class="fas fa-file-alt"></i>
+                    <span>${displayName}</span>
+                `;
+            }
+            
+            itemElement.innerHTML = itemHTML;
+            
+            // Add highlight class if item matches search
+            if (item.matchesSearch) {
+                itemElement.classList.add('search-match');
+            }
+            
+            // Add click event for item selection
+            itemElement.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.selectItem(item, itemElement);
+            });
+
+            // Add context menu for delete
+            itemElement.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                this.showContextMenu(e, item);
+            });
+            
+            // Add expand/collapse functionality for folders (only when not searching)
+            if (item.type === 'folder' && !this.searchTerm) {
+                const expandIcon = itemElement.querySelector('.expand-icon');
+                expandIcon.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.toggleFolder(item.path, itemElement);
+                });
+            }
+
+            container.appendChild(itemElement);
+
+            // Render children
+            if (item.children && item.children.length > 0) {
+                const childrenContainer = document.createElement('div');
+                const isCollapsed = this.searchTerm ? false : this.collapsedFolders.has(item.path);
+                childrenContainer.className = `tree-children ${isCollapsed ? 'collapsed' : ''}`;
+                container.appendChild(childrenContainer);
+                
+                if (!isCollapsed) {
+                    this.renderFileTreeWithHighlight(item.children, childrenContainer, level + 1);
+                }
+            }
+        });
+    }
+    
+    highlightSearchTerm(text, searchTerm) {
+        if (!searchTerm) return text;
+        
+        const regex = new RegExp(`(${this.escapeRegex(searchTerm)})`, 'gi');
+        return text.replace(regex, '<span class="search-highlight">$1</span>');
+    }
+    
+    escapeRegex(string) {
+        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+    
+    expandAllForSearch() {
+        // Temporarily clear collapsed folders during search
+        this.tempCollapsedFolders = new Set(this.collapsedFolders);
+        this.collapsedFolders.clear();
+    }
+    
+    restoreCollapsedState() {
+        // Restore collapsed folders when search is cleared
+        if (this.tempCollapsedFolders) {
+            this.collapsedFolders = this.tempCollapsedFolders;
+            this.tempCollapsedFolders = null;
+        }
+    }
+    
+    updateSearchStats() {
+        const statsElement = document.getElementById('searchStats');
+        
+        if (!this.searchTerm) {
+            statsElement.classList.add('hidden');
+            return;
+        }
+        
+        const totalMatches = this.countMatches(this.filteredTree);
+        
+        if (totalMatches === 0) {
+            statsElement.innerHTML = 'No results found';
+        } else {
+            const plural = totalMatches === 1 ? '' : 's';
+            statsElement.innerHTML = `${totalMatches} result${plural} found`;
+        }
+        
+        statsElement.classList.remove('hidden');
+    }
+    
+    countMatches(tree) {
+        let count = 0;
+        
+        tree.forEach(item => {
+            if (item.matchesSearch) {
+                count++;
+            }
+            if (item.children) {
+                count += this.countMatches(item.children);
+            }
+        });
+        
+        return count;
+    }
+    
+    clearSearch() {
+        document.getElementById('searchInput').value = '';
+        this.searchResults = [];
+        this.handleSearch('');
+        document.getElementById('searchInput').focus();
     }
 }
 

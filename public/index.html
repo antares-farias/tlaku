@@ -30,6 +30,30 @@
         <main class="main-content">
             <div class="sidebar">
                 <h3>File Tree</h3>
+                <div class="search-container">
+                    <div class="search-input-wrapper">
+                        <i class="fas fa-search search-icon"></i>
+                        <input 
+                            type="text" 
+                            id="searchInput" 
+                            class="search-input" 
+                            placeholder="Search files and folders..." 
+                            autocomplete="off"
+                        >
+                        <button id="clearSearchBtn" class="clear-search-btn hidden" title="Clear search">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="search-options">
+                        <label class="search-option">
+                            <input type="checkbox" id="searchContentCheckbox" class="search-content-checkbox">
+                            <span class="checkmark"></span>
+                            <span class="search-option-text">Search file content</span>
+                            <i class="fas fa-info-circle search-help" title="Include file content in search (slower but more thorough)"></i>
+                        </label>
+                    </div>
+                    <div id="searchStats" class="search-stats hidden"></div>
+                </div>
                 <div id="fileTree" class="file-tree"></div>
             </div>
             
