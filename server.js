@@ -2,6 +2,7 @@ const express = require('express');
 const fs = require('fs').promises;
 const path = require('path');
 const cors = require('cors');
+const simpleGit = require('simple-git');
 
 const app = express();
 const PORT = process.env.PORT || 3020;
@@ -13,6 +14,41 @@ app.use(cors());
 
 // Base directory for file operations
 const BASE_DIR = path.join(__dirname, 'documents');
+
+// Initialize git for the repository
+const git = simpleGit(__dirname);
+
+// Helper function to commit and push changes
+async function commitAndPush(message) {
+  try {
+    // Check if this is a git repository
+    const isRepo = await git.checkIsRepo();
+    if (!isRepo) {
+      console.log('Not a git repository. Skipping git operations.');
+      return;
+    }
+
+    // Add all changes
+    await git.add('.');
+    
+    // Check if there are any changes to commit
+    const status = await git.status();
+    if (status.files.length === 0) {
+      console.log('No changes to commit');
+      return;
+    }
+
+    // Commit changes
+    await git.commit(message);
+    
+    // Push changes
+    await git.push();
+    console.log(`✓ Committed and pushed: ${message}`);
+  } catch (error) {
+    console.error('Git operation failed:', error.message);
+    // Don't throw error to avoid breaking file operations
+  }
+}
 
 // Ensure documents directory exists
 async function ensureDocumentsDir() {
@@ -88,6 +124,11 @@ app.post('/api/folder', async (req, res) => {
     const fullPath = getFullPath(path.join(folderPath || '', name));
     
     await fs.mkdir(fullPath, { recursive: true });
+    
+    // Commit and push changes
+    const relativePath = path.join(folderPath || '', name).replace(/\\/g, '/');
+    await commitAndPush(`Create folder: ${relativePath}`);
+    
     res.json({ success: true, message: 'Folder created successfully' });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -105,6 +146,11 @@ app.post('/api/file', async (req, res) => {
     await fs.mkdir(path.dirname(fullPath), { recursive: true });
     
     await fs.writeFile(fullPath, content, 'utf8');
+    
+    // Commit and push changes
+    const relativePath = path.join(filePath || '', fileName).replace(/\\/g, '/');
+    await commitAndPush(`Create file: ${relativePath}`);
+    
     res.json({ success: true, message: 'File created successfully' });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -132,6 +178,10 @@ app.put('/api/file/*', async (req, res) => {
     const fullPath = getFullPath(filePath);
     
     await fs.writeFile(fullPath, content, 'utf8');
+    
+    // Commit and push changes
+    await commitAndPush(`Update file: ${filePath}`);
+    
     res.json({ success: true, message: 'File updated successfully' });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -147,8 +197,10 @@ app.delete('/api/item/*', async (req, res) => {
     const stats = await fs.stat(fullPath);
     if (stats.isDirectory()) {
       await fs.rmdir(fullPath, { recursive: true });
+      await commitAndPush(`Delete folder: ${itemPath}`);
     } else {
       await fs.unlink(fullPath);
+      await commitAndPush(`Delete file: ${itemPath}`);
     }
     
     res.json({ success: true, message: 'Item deleted successfully' });
