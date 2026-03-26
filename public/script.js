@@ -41,6 +41,34 @@ class FileTreeExplorer {
             this.cancelEdit();
         });
 
+        // Markdown formatting buttons
+        document.querySelector('#markdownToolbar').addEventListener('click', (e) => {
+            if (e.target.closest('.format-btn')) {
+                const action = e.target.closest('.format-btn').dataset.action;
+                this.insertMarkdown(action);
+            }
+        });
+
+        // Keyboard shortcuts for editing
+        document.getElementById('fileEditor').addEventListener('keydown', (e) => {
+            if (e.ctrlKey || e.metaKey) {
+                switch (e.key) {
+                    case 'b':
+                        e.preventDefault();
+                        this.insertMarkdown('bold');
+                        break;
+                    case 'i':
+                        e.preventDefault();
+                        this.insertMarkdown('italic');
+                        break;
+                    case 's':
+                        e.preventDefault();
+                        this.saveFile();
+                        break;
+                }
+            }
+        });
+
         // Modal events
         document.getElementById('modalClose').addEventListener('click', () => {
             this.hideModal();
@@ -312,6 +340,11 @@ class FileTreeExplorer {
         document.getElementById('saveBtn').classList.remove('hidden');
         document.getElementById('cancelBtn').classList.remove('hidden');
         
+        // Show markdown toolbar if editing a markdown file
+        if (this.currentFile && this.currentFile.path.endsWith('.md')) {
+            document.getElementById('markdownToolbar').classList.remove('hidden');
+        }
+        
         document.getElementById('fileEditor').focus();
     }
 
@@ -322,6 +355,9 @@ class FileTreeExplorer {
         document.getElementById('editBtn').classList.remove('hidden');
         document.getElementById('saveBtn').classList.add('hidden');
         document.getElementById('cancelBtn').classList.add('hidden');
+        
+        // Hide markdown toolbar
+        document.getElementById('markdownToolbar').classList.add('hidden');
     }
 
     cancelEdit() {
@@ -454,7 +490,98 @@ class FileTreeExplorer {
     hideFileViewer() {
         document.getElementById('fileViewer').classList.add('hidden');
         document.getElementById('welcomeMessage').classList.remove('hidden');
+        document.getElementById('markdownToolbar').classList.add('hidden');
         this.currentFile = null;
+    }
+
+    insertMarkdown(action) {
+        const editor = document.getElementById('fileEditor');
+        const start = editor.selectionStart;
+        const end = editor.selectionEnd;
+        const selectedText = editor.value.substring(start, end);
+        const beforeText = editor.value.substring(0, start);
+        const afterText = editor.value.substring(end);
+        
+        let newText = '';
+        let newCursorPos = start;
+        
+        switch (action) {
+            case 'bold':
+                newText = `**${selectedText || 'bold text'}**`;
+                newCursorPos = selectedText ? end + 4 : start + 2;
+                break;
+                
+            case 'italic':
+                newText = `*${selectedText || 'italic text'}*`;
+                newCursorPos = selectedText ? end + 2 : start + 1;
+                break;
+                
+            case 'strikethrough':
+                newText = `~~${selectedText || 'strikethrough text'}~~`;
+                newCursorPos = selectedText ? end + 4 : start + 2;
+                break;
+                
+            case 'h1':
+                newText = `# ${selectedText || 'Header 1'}`;
+                newCursorPos = selectedText ? end + 2 : start + 2;
+                break;
+                
+            case 'h2':
+                newText = `## ${selectedText || 'Header 2'}`;
+                newCursorPos = selectedText ? end + 3 : start + 3;
+                break;
+                
+            case 'h3':
+                newText = `### ${selectedText || 'Header 3'}`;
+                newCursorPos = selectedText ? end + 4 : start + 4;
+                break;
+                
+            case 'list':
+                const listText = selectedText || 'List item';
+                newText = `- ${listText}`;
+                newCursorPos = selectedText ? end + 2 : start + 2;
+                break;
+                
+            case 'orderedList':
+                const orderedText = selectedText || 'List item';
+                newText = `1. ${orderedText}`;
+                newCursorPos = selectedText ? end + 3 : start + 3;
+                break;
+                
+            case 'quote':
+                newText = `> ${selectedText || 'Quote'}`;
+                newCursorPos = selectedText ? end + 2 : start + 2;
+                break;
+                
+            case 'link':
+                const linkText = selectedText || 'link text';
+                newText = `[${linkText}](url)`;
+                newCursorPos = selectedText ? end + 3 : start + linkText.length + 3;
+                break;
+                
+            case 'image':
+                const altText = selectedText || 'alt text';
+                newText = `![${altText}](image-url)`;
+                newCursorPos = selectedText ? end + 4 : start + altText.length + 4;
+                break;
+                
+            case 'code':
+                newText = `\`${selectedText || 'code'}\``;
+                newCursorPos = selectedText ? end + 2 : start + 1;
+                break;
+                
+            case 'codeBlock':
+                newText = `\`\`\`\n${selectedText || 'code'}\n\`\`\``;
+                newCursorPos = selectedText ? end + 8 : start + 4;
+                break;
+                
+            default:
+                return;
+        }
+        
+        editor.value = beforeText + newText + afterText;
+        editor.focus();
+        editor.setSelectionRange(newCursorPos, newCursorPos);
     }
 
     showLoading(show) {

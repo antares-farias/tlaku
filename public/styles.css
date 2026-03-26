@@ -417,6 +417,63 @@ header h1 i {
     100% { transform: rotate(360deg); }
 }
 
+/* Markdown toolbar styles */
+.markdown-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.75rem 2rem;
+    background: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    justify-content: flex-start;
+    align-items: center;
+}
+
+.format-group {
+    display: flex;
+    gap: 0.25rem;
+    border-right: 1px solid #dee2e6;
+    padding-right: 0.5rem;
+    margin-right: 0.5rem;
+}
+
+.format-group:last-child {
+    border-right: none;
+    margin-right: 0;
+}
+
+.format-btn {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #dee2e6;
+    background: white;
+    color: #495057;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    min-width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    font-weight: 500;
+}
+
+.format-btn:hover {
+    background: #e9ecef;
+    border-color: #adb5bd;
+    color: #495057;
+}
+
+.format-btn:active {
+    background: #dee2e6;
+    transform: translateY(1px);
+}
+
+.format-btn i {
+    font-size: 0.9rem;
+}
+
 /* Utility classes */
 .hidden {
     display: none !important;
