@@ -1,0 +1,387 @@
+class FileTreeExplorer {
+    constructor() {
+        this.currentPath = '';
+        this.currentFile = null;
+        this.isEditing = false;
+        this.originalContent = '';
+        
+        this.init();
+    }
+
+    init() {
+        this.bindEvents();
+        this.loadFileTree();
+    }
+
+    bindEvents() {
+        // Toolbar buttons
+        document.getElementById('createFolderBtn').addEventListener('click', () => {
+            this.showCreateModal('folder');
+        });
+        
+        document.getElementById('createFileBtn').addEventListener('click', () => {
+            this.showCreateModal('file');
+        });
+        
+        document.getElementById('refreshBtn').addEventListener('click', () => {
+            this.loadFileTree();
+        });
+
+        // File viewer actions
+        document.getElementById('editBtn').addEventListener('click', () => {
+            this.enterEditMode();
+        });
+        
+        document.getElementById('saveBtn').addEventListener('click', () => {
+            this.saveFile();
+        });
+        
+        document.getElementById('cancelBtn').addEventListener('click', () => {
+            this.cancelEdit();
+        });
+
+        // Modal events
+        document.getElementById('modalClose').addEventListener('click', () => {
+            this.hideModal();
+        });
+        
+        document.getElementById('modalCancel').addEventListener('click', () => {
+            this.hideModal();
+        });
+        
+        document.getElementById('modalCreate').addEventListener('click', () => {
+            this.createItem();
+        });
+        
+        // Modal keyboard events
+        document.getElementById('itemName').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                this.createItem();
+            }
+        });
+
+        // Close modal when clicking outside
+        document.getElementById('modal').addEventListener('click', (e) => {
+            if (e.target.id === 'modal') {
+                this.hideModal();
+            }
+        });
+    }
+
+    async loadFileTree() {
+        try {
+            this.showLoading(true);
+            const response = await fetch('/api/tree');
+            const tree = await response.json();
+            this.renderFileTree(tree);
+        } catch (error) {
+            this.showError('Failed to load file tree: ' + error.message);
+        } finally {
+            this.showLoading(false);
+        }
+    }
+
+    renderFileTree(tree, container = null, level = 0) {
+        if (!container) {
+            container = document.getElementById('fileTree');
+            container.innerHTML = '';
+        }
+
+        tree.forEach(item => {
+            const itemElement = document.createElement('div');
+            itemElement.className = `tree-item ${item.type}`;
+            itemElement.style.paddingLeft = `${level * 1}rem`;
+            
+            const icon = item.type === 'folder' 
+                ? '<i class="fas fa-folder"></i>' 
+                : '<i class="fas fa-file-alt"></i>';
+            
+            itemElement.innerHTML = `${icon} ${item.name}`;
+            
+            itemElement.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.selectItem(item, itemElement);
+            });
+
+            // Add context menu for delete
+            itemElement.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                this.showContextMenu(e, item);
+            });
+
+            container.appendChild(itemElement);
+
+            if (item.children && item.children.length > 0) {
+                const childrenContainer = document.createElement('div');
+                childrenContainer.className = 'tree-children';
+                container.appendChild(childrenContainer);
+                this.renderFileTree(item.children, childrenContainer, level + 1);
+            }
+        });
+    }
+
+    selectItem(item, element) {
+        // Remove previous selection
+        document.querySelectorAll('.tree-item.selected').forEach(el => {
+            el.classList.remove('selected');
+        });
+        
+        // Add selection to current item
+        element.classList.add('selected');
+        
+        if (item.type === 'folder') {
+            this.currentPath = item.path;
+            this.hideFileViewer();
+        } else {
+            this.currentFile = item;
+            this.loadFile(item.path);
+        }
+    }
+
+    async loadFile(filePath) {
+        try {
+            this.showLoading(true);
+            const response = await fetch(`/api/file/${filePath}`);
+            const data = await response.json();
+            
+            if (response.ok) {
+                this.showFileContent(filePath, data.content);
+            } else {
+                this.showError('Failed to load file: ' + data.error);
+            }
+        } catch (error) {
+            this.showError('Failed to load file: ' + error.message);
+        } finally {
+            this.showLoading(false);
+        }
+    }
+
+    showFileContent(filePath, content) {
+        this.originalContent = content;
+        
+        // Show file viewer
+        document.getElementById('welcomeMessage').classList.add('hidden');
+        document.getElementById('fileViewer').classList.remove('hidden');
+        
+        // Set file name
+        document.getElementById('fileName').textContent = filePath;
+        
+        // Render markdown content
+        const fileContent = document.getElementById('fileContent');
+        if (filePath.endsWith('.md')) {
+            fileContent.innerHTML = this.parseMarkdown(content);
+        } else {
+            fileContent.innerHTML = `<pre><code>${this.escapeHtml(content)}</code></pre>`;
+        }
+        
+        // Set up editor
+        document.getElementById('fileEditor').value = content;
+        
+        // Reset edit mode
+        this.exitEditMode();
+    }
+
+    parseMarkdown(text) {
+        // Simple markdown parser - in a real app, you'd use a library like 'marked'
+        let html = text
+            .replace(/^\# (.*$)/gm, '<h1>$1</h1>')
+            .replace(/^\## (.*$)/gm, '<h2>$1</h2>')
+            .replace(/^\### (.*$)/gm, '<h3>$1</h3>')
+            .replace(/^\#### (.*$)/gm, '<h4>$1</h4>')
+            .replace(/^\##### (.*$)/gm, '<h5>$1</h5>')
+            .replace(/^\###### (.*$)/gm, '<h6>$1</h6>')
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*(.*?)\*/g, '<em>$1</em>')
+            .replace(/`(.*?)`/g, '<code>$1</code>')
+            .replace(/^\> (.*$)/gm, '<blockquote>$1</blockquote>')
+            .replace(/^\- (.*$)/gm, '<ul><li>$1</li></ul>')
+            .replace(/^\d+\. (.*$)/gm, '<ol><li>$1</li></ol>')
+            .replace(/\n\n/g, '</p><p>')
+            .replace(/\n/g, '<br>');
+        
+        return `<p>${html}</p>`;
+    }
+
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    enterEditMode() {
+        this.isEditing = true;
+        document.getElementById('fileContent').classList.add('hidden');
+        document.getElementById('fileEditor').classList.remove('hidden');
+        document.getElementById('editBtn').classList.add('hidden');
+        document.getElementById('saveBtn').classList.remove('hidden');
+        document.getElementById('cancelBtn').classList.remove('hidden');
+        
+        document.getElementById('fileEditor').focus();
+    }
+
+    exitEditMode() {
+        this.isEditing = false;
+        document.getElementById('fileContent').classList.remove('hidden');
+        document.getElementById('fileEditor').classList.add('hidden');
+        document.getElementById('editBtn').classList.remove('hidden');
+        document.getElementById('saveBtn').classList.add('hidden');
+        document.getElementById('cancelBtn').classList.add('hidden');
+    }
+
+    cancelen() {
+        document.getElementById('fileEditor').value = this.originalContent;
+        this.exitEditMode();
+    }
+
+    async saveFile() {
+        if (!this.currentFile) return;
+        
+        try {
+            this.showLoading(true);
+            const content = document.getElementById('fileEditor').value;
+            
+            const response = await fetch(`/api/file/${this.currentFile.path}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ content })
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+                this.originalContent = content;
+                this.showFileContent(this.currentFile.path, content);
+                this.showSuccess('File saved successfully');
+            } else {
+                this.showError('Failed to save file: ' + data.error);
+            }
+        } catch (error) {
+            this.showError('Failed to save file: ' + error.message);
+        } finally {
+            this.showLoading(false);
+        }
+    }
+
+    showCreateModal(type) {
+        document.getElementById('modalTitle').textContent = 
+            type === 'folder' ? 'Create New Folder' : 'Create New Document';
+        document.getElementById('itemName').placeholder = 
+            type === 'folder' ? 'Enter folder name...' : 'Enter document name...';
+        document.getElementById('currentPath').textContent = this.currentPath || '/';
+        document.getElementById('itemName').value = '';
+        
+        document.getElementById('modal').classList.remove('hidden');
+        document.getElementById('modal').dataset.type = type;
+        document.getElementById('itemName').focus();
+    }
+
+    hideModal() {
+        document.getElementById('modal').classList.add('hidden');
+    }
+
+    async createItem() {
+        const type = document.getElementById('modal').dataset.type;
+        const name = document.getElementById('itemName').value.trim();
+        
+        if (!name) {
+            this.showError('Please enter a name');
+            return;
+        }
+        
+        try {
+            this.showLoading(true);
+            
+            const endpoint = type === 'folder' ? '/api/folder' : '/api/file';
+            const body = {
+                path: this.currentPath,
+                name: name,
+                content: type === 'file' ? '# ' + name + '\n\nWrite your content here...' : undefined
+            };
+            
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(body)
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+                this.hideModal();
+                this.loadFileTree();
+                this.showSuccess(data.message);
+            } else {
+                this.showError('Failed to create item: ' + data.error);
+            }
+        } catch (error) {
+            this.showError('Failed to create item: ' + error.message);
+        } finally {
+            this.showLoading(false);
+        }
+    }
+
+    showContextMenu(event, item) {
+        // Simple delete confirmation for now
+        if (confirm(`Are you sure you want to delete "${item.name}"?`)) {
+            this.deleteItem(item);
+        }
+    }
+
+    async deleteItem(item) {
+        try {
+            this.showLoading(true);
+            
+            const response = await fetch(`/api/item/${item.path}`, {
+                method: 'DELETE'
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+                this.loadFileTree();
+                this.hideFileViewer();
+                this.showSuccess(data.message);
+            } else {
+                this.showError('Failed to delete item: ' + data.error);
+            }
+        } catch (error) {
+            this.showError('Failed to delete item: ' + error.message);
+        } finally {
+            this.showLoading(false);
+        }
+    }
+
+    hideFileViewer() {
+        document.getElementById('fileViewer').classList.add('hidden');
+        document.getElementById('welcomeMessage').classList.remove('hidden');
+        this.currentFile = null;
+    }
+
+    showLoading(show) {
+        const overlay = document.getElementById('loadingOverlay');
+        if (show) {
+            overlay.classList.remove('hidden');
+        } else {
+            overlay.classList.add('hidden');
+        }
+    }
+
+    showError(message) {
+        // Simple error notification - in a real app, you'd use a proper notification system
+        alert('Error: ' + message);
+    }
+
+    showSuccess(message) {
+        // Simple success notification - in a real app, you'd use a proper notification system
+        alert('Success: ' + message);
+    }
+}
+
+// Initialize the application when the page loads
+document.addEventListener('DOMContentLoaded', () => {
+    new FileTreeExplorer();
+});

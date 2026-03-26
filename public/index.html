@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Tree Explorer</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><i class="fas fa-folder-tree"></i> File Tree Explorer</h1>
+            <div class="toolbar">
+                <button id="createFolderBtn" class="btn btn-primary">
+                    <i class="fas fa-folder-plus"></i> New Folder
+                </button>
+                <button id="createFileBtn" class="btn btn-success">
+                    <i class="fas fa-file-plus"></i> New Document
+                </button>
+                <button id="refreshBtn" class="btn btn-secondary">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <div class="sidebar">
+                <h3>File Tree</h3>
+                <div id="fileTree" class="file-tree"></div>
+            </div>
+            
+            <div class="content-area">
+                <div id="welcomeMessage" class="welcome">
+                    <h2>Welcome to File Tree Explorer</h2>
+                    <p>Select a file from the tree to view its content, or create new files and folders using the toolbar.</p>
+                </div>
+                
+                <div id="fileViewer" class="file-viewer hidden">
+                    <div class="file-header">
+                        <h3 id="fileName"></h3>
+                        <div class="file-actions">
+                            <button id="editBtn" class="btn btn-outline">
+                                <i class="fas fa-edit"></i> Edit
+                            </button>
+                            <button id="saveBtn" class="btn btn-success hidden">
+                                <i class="fas fa-save"></i> Save
+                            </button>
+                            <button id="cancelBtn" class="btn btn-outline hidden">
+                                <i class="fas fa-times"></i> Cancel
+                            </button>
+                        </div>
+                    </div>
+                    <div id="fileContent" class="file-content"></div>
+                    <textarea id="fileEditor" class="file-editor hidden"></textarea>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal for creating new items -->
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">Create New Item</h3>
+                <button id="modalClose" class="close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <label for="itemName">Name:</label>
+                <input type="text" id="itemName" placeholder="Enter name...">
+                <div id="pathInfo" class="path-info">
+                    <strong>Location:</strong> <span id="currentPath">/</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="modalCancel" class="btn btn-outline">Cancel</button>
+                <button id="modalCreate" class="btn btn-primary">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading overlay -->
+    <div id="loadingOverlay" class="loading-overlay hidden">
+        <div class="spinner"></div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
