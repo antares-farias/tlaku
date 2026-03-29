@@ -1,6 +1,7 @@
 - ✅ make the right tree to be hable to colaps folder
 - make the page full width
 - ✅ put help format buttons on edit markdown formats
-- add a dark theme
-- add a search bar
+- ✅ add a dark theme
+- ✅ add a search bar
+- ✅ create an env file that has 3 lists of letters of the latin alfabet including acoute letter, ñ and uppercase letters, the letters cannot repeat between list, and 3 list diferent japanese unicode characters, this the first list should have 4 times the amount of characters in the first alfabet-list the second should have 3 times the amount of characters in the second alfabet-list and the third should have 2 time the amount of characteres in the third alfabet-list , the characters in the 3 lists should be unique
 - if the file has an encript tag at the begining save the encripted file

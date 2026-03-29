@@ -1,8 +1,168 @@
+// Load environment variables from .env file
+require('dotenv').config();
+
 const express = require('express');
 const fs = require('fs').promises;
 const path = require('path');
 const cors = require('cors');
 const simpleGit = require('simple-git');
+
+// Environment variable validation configuration for Japanese and Latin lists
+const ENV_VALIDATION_RULES = {
+  // Latin character lists validation
+  LATIN_LIST_1: { min: 10, max: 100, exact: null, range: [10, 100] },
+  LATIN_LIST_2: { min: 10, max: 100, exact: null, range: [10, 100] },
+  LATIN_LIST_3: { min: 10, max: 100, exact: null, range: [10, 100] },
+  
+  // Japanese character lists validation  
+  JAPANESE_LIST_1: { min: 20, max: 500, exact: null, range: [20, 500] },
+  JAPANESE_LIST_2: { min: 20, max: 200, exact: null, range: [20, 200] },
+  JAPANESE_LIST_3: { min: 10, max: 200, exact: null, range: [10, 200] }
+};
+
+/**
+ * Load and validate Japanese and Latin list environment variables for length consistency
+ * @param {Object} customRules - Optional custom validation rules to override defaults
+ * @returns {Object} - Validation result with status and details
+ */
+function loadAndCheckEnvVariables(customRules = {}) {
+  const results = {
+    status: 'success',
+    validVariables: [],
+    invalidVariables: [],
+    warnings: [],
+    summary: {
+      total: 0,
+      valid: 0,
+      invalid: 0
+    }
+  };
+
+  // Merge custom rules with default rules
+  const rules = { ...ENV_VALIDATION_RULES, ...customRules };
+  
+  // Filter to only check Japanese and Latin list variables
+  const targetVariables = Object.keys(rules).filter(key => 
+    key.startsWith('LATIN_LIST_') || key.startsWith('JAPANESE_LIST_')
+  );
+  
+  results.summary.total = targetVariables.length;
+  
+  console.log(`🔍 Validating ${targetVariables.length} Japanese and Latin list variables...`);
+  
+  for (const key of targetVariables) {
+    const value = process.env[key];
+    
+    if (value === undefined || value === null) {
+      results.invalidVariables.push({
+        name: key,
+        length: 0,
+        value: 'undefined',
+        errors: ['Environment variable not found'],
+        rules: rules[key]
+      });
+      results.summary.invalid++;
+      results.status = 'warning';
+      console.warn(`⚠️  ENV VAR "${key}": Environment variable not found`);
+      results.warnings.push(`${key}: Environment variable not found`);
+      continue;
+    }
+    
+    const validation = validateSingleEnvVar(key, value, rules);
+    
+    if (validation.isValid) {
+      results.validVariables.push({
+        name: key,
+        length: value.length,
+        rules: validation.appliedRules,
+        preview: value.substring(0, 20) + (value.length > 20 ? '...' : '')
+      });
+      results.summary.valid++;
+    } else {
+      results.invalidVariables.push({
+        name: key,
+        length: value.length,
+        value: value.substring(0, 20) + (value.length > 20 ? '...' : ''),
+        errors: validation.errors,
+        rules: validation.appliedRules
+      });
+      results.summary.invalid++;
+      results.status = 'warning';
+      
+      // Log warning for each invalid variable
+      console.warn(`⚠️  ENV VAR "${key}": ${validation.errors.join(', ')}`);
+      results.warnings.push(`${key}: ${validation.errors.join(', ')}`);
+    }
+  }
+  
+  // Log summary
+  console.log(`✅ Japanese/Latin list validation complete: ${results.summary.valid} valid, ${results.summary.invalid} invalid`);
+  
+  if (results.warnings.length > 0) {
+    console.warn(`📋 Japanese/Latin list validation warnings:\n${results.warnings.map(w => `   - ${w}`).join('\n')}`);
+  }
+  
+  return results;
+}
+
+/**
+ * Validate a single environment variable against rules
+ * @param {string} key - Environment variable name
+ * @param {string} value - Environment variable value
+ * @param {Object} rules - Validation rules object
+ * @returns {Object} - Validation result for this variable
+ */
+function validateSingleEnvVar(key, value, rules) {
+  const result = {
+    isValid: true,
+    errors: [],
+    appliedRules: null
+  };
+  
+  // Get rules for this specific variable
+  const varRules = rules[key];
+  if (!varRules) {
+    result.errors.push('No validation rules defined for this variable');
+    result.isValid = false;
+    return result;
+  }
+  
+  result.appliedRules = varRules;
+  
+  const length = value ? value.length : 0;
+  
+  // Check exact length requirement
+  if (varRules.exact !== null && varRules.exact !== undefined) {
+    if (length !== varRules.exact) {
+      result.isValid = false;
+      result.errors.push(`length ${length} != required exact length ${varRules.exact}`);
+    }
+    return result; // Skip other checks if exact length is specified
+  }
+  
+  // Check minimum length
+  if (varRules.min !== null && varRules.min !== undefined && length < varRules.min) {
+    result.isValid = false;
+    result.errors.push(`length ${length} < minimum ${varRules.min}`);
+  }
+  
+  // Check maximum length
+  if (varRules.max !== null && varRules.max !== undefined && length > varRules.max) {
+    result.isValid = false;
+    result.errors.push(`length ${length} > maximum ${varRules.max}`);
+  }
+  
+  // Check range validation (alternative to separate min/max)
+  if (varRules.range && Array.isArray(varRules.range) && varRules.range.length === 2) {
+    const [rangeMin, rangeMax] = varRules.range;
+    if (length < rangeMin || length > rangeMax) {
+      result.isValid = false;
+      result.errors.push(`length ${length} outside range [${rangeMin}-${rangeMax}]`);
+    }
+  }
+  
+  return result;
+}
 
 const app = express();
 const PORT = process.env.PORT || 3020;
@@ -17,6 +177,130 @@ const BASE_DIR = path.join(__dirname, 'documents');
 
 // Initialize git for the repository
 const git = simpleGit(__dirname);
+
+// Load character lists from environment variables
+const LATIN_LISTS = [
+  process.env.LATIN_LIST_1 || '',
+  process.env.LATIN_LIST_2 || '',
+  process.env.LATIN_LIST_3 || ''
+];
+
+const JAPANESE_LISTS = [
+  process.env.JAPANESE_LIST_1 || '',
+  process.env.JAPANESE_LIST_2 || '',
+  process.env.JAPANESE_LIST_3 || ''
+];
+
+/**
+ * Encrypt a text using Latin to Japanese character mapping with the specified formula
+ * @param {string} text - Text to encrypt
+ * @param {number} seed - Optional seed for reproducible randomness (default: current timestamp)
+ * @returns {string} - Encrypted text
+ */
+function encryptText(text, seed = null) {
+  if (!text) return '';
+  
+  // Use provided seed or current timestamp for randomness
+  const randomSeed = seed !== null ? seed : Date.now();
+  let seedCounter = 0;
+  
+  // Simple seeded random function for reproducible results
+  function seededRandom() {
+    const x = Math.sin(randomSeed + seedCounter++) * 10000;
+    return x - Math.floor(x);
+  }
+  
+  let encrypted = '';
+  
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    let listNumber = -1;
+    let positionInList = -1;
+    
+    // Find which list the character belongs to
+    for (let j = 0; j < LATIN_LISTS.length; j++) {
+      const pos = LATIN_LISTS[j].indexOf(char);
+      if (pos !== -1) {
+        listNumber = j;
+        positionInList = pos;
+        break;
+      }
+    }
+    
+    // If character is not in any list, keep it as is
+    if (listNumber === -1) {
+      encrypted += char;
+      continue;
+    }
+    
+    const latinList = LATIN_LISTS[listNumber];
+    const japaneseList = JAPANESE_LISTS[listNumber];
+    
+    if (!japaneseList || japaneseList.length === 0) {
+      encrypted += char; // Fallback to original character
+      continue;
+    }
+    
+    // Calculate ratio as specified in formula
+    const ratio = japaneseList.length / latinList.length;
+    
+    // Apply the formula: rand(1, ratio) * position in list
+    // Interpreting "rand(1, ratio)" as random between 1 and ratio
+    const randomMultiplier = 1 + seededRandom() * (ratio - 1);
+    const targetIndex = Math.floor(randomMultiplier * positionInList);
+    
+    // Ensure index is within bounds
+    const safeIndex = targetIndex % japaneseList.length;
+    
+    encrypted += japaneseList[safeIndex];
+  }
+  
+  return encrypted;
+}
+
+/**
+ * Decrypt Japanese text back to Latin characters
+ * Note: This is approximate due to the random nature of encryption
+ * @param {string} encryptedText - Text to decrypt
+ * @returns {string} - Decrypted text (best effort)
+ */
+function decryptText(encryptedText) {
+  if (!encryptedText) return '';
+  
+  let decrypted = '';
+  
+  for (let i = 0; i < encryptedText.length; i++) {
+    const char = encryptedText[i];
+    let found = false;
+    
+    // Find which Japanese list the character belongs to
+    for (let listIndex = 0; listIndex < JAPANESE_LISTS.length; listIndex++) {
+      const japaneseList = JAPANESE_LISTS[listIndex];
+      const latinList = LATIN_LISTS[listIndex];
+      
+      const posInJapanese = japaneseList.indexOf(char);
+      if (posInJapanese !== -1) {
+        // Reverse engineer the original position
+        const ratio = japaneseList.length / latinList.length;
+        
+        // Estimate the original position (this is approximate due to randomness)
+        const estimatedOriginalPos = Math.floor(posInJapanese / ratio);
+        const safePos = Math.min(estimatedOriginalPos, latinList.length - 1);
+        
+        decrypted += latinList[safePos];
+        found = true;
+        break;
+      }
+    }
+    
+    // If character not found in any Japanese list, keep as is
+    if (!found) {
+      decrypted += char;
+    }
+  }
+  
+  return decrypted;
+}
 
 // Helper function to commit and push changes
 async function commitAndPush(message) {
@@ -197,6 +481,158 @@ app.get('/api/tree', async (req, res) => {
   }
 });
 
+// Encryption API endpoint
+app.post('/api/encrypt', (req, res) => {
+  try {
+    const { text, seed } = req.body;
+    
+    if (!text) {
+      return res.status(400).json({ error: 'Text is required for encryption' });
+    }
+    
+    const encrypted = encryptText(text, seed);
+    
+    res.json({
+      original: text,
+      encrypted: encrypted,
+      seed: seed || 'auto-generated',
+      listsUsed: {
+        latin1: LATIN_LISTS[0].length,
+        latin2: LATIN_LISTS[1].length, 
+        latin3: LATIN_LISTS[2].length,
+        japanese1: JAPANESE_LISTS[0].length,
+        japanese2: JAPANESE_LISTS[1].length,
+        japanese3: JAPANESE_LISTS[2].length
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Decryption API endpoint
+app.post('/api/decrypt', (req, res) => {
+  try {
+    const { text } = req.body;
+    
+    if (!text) {
+      return res.status(400).json({ error: 'Text is required for decryption' });
+    }
+    
+    const decrypted = decryptText(text);
+    
+    res.json({
+      encrypted: text,
+      decrypted: decrypted,
+      note: 'Decryption is approximate due to randomness in encryption'
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Test endpoint for character lists
+app.get('/api/character-lists', (req, res) => {
+  try {
+    res.json({
+      latin: {
+        list1: { characters: LATIN_LISTS[0], count: LATIN_LISTS[0].length },
+        list2: { characters: LATIN_LISTS[1], count: LATIN_LISTS[1].length },
+        list3: { characters: LATIN_LISTS[2], count: LATIN_LISTS[2].length }
+      },
+      japanese: {
+        list1: { characters: JAPANESE_LISTS[0], count: JAPANESE_LISTS[0].length },
+        list2: { characters: JAPANESE_LISTS[1], count: JAPANESE_LISTS[1].length },
+        list3: { characters: JAPANESE_LISTS[2], count: JAPANESE_LISTS[2].length }
+      },
+      ratios: {
+        list1: JAPANESE_LISTS[0].length / LATIN_LISTS[0].length,
+        list2: JAPANESE_LISTS[1].length / LATIN_LISTS[1].length,
+        list3: JAPANESE_LISTS[2].length / LATIN_LISTS[2].length
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// API endpoint to load environment variables from .env file
+app.get('/api/load-env', async (req, res) => {
+  try {
+    const envPath = path.join(__dirname, '.env');
+    
+    // Check if .env file exists
+    try {
+      await fs.access(envPath);
+    } catch (error) {
+      return res.status(404).json({ 
+        error: '.env file not found',
+        message: 'Create a .env file in the project root with character list variables'
+      });
+    }
+
+    // Read .env file
+    const envContent = await fs.readFile(envPath, 'utf8');
+    
+    // Parse .env content to extract character lists
+    const envVars = {};
+    const lines = envContent.split('\n');
+    
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed && !trimmed.startsWith('#') && trimmed.includes('=')) {
+        const [key, ...valueParts] = trimmed.split('=');
+        const value = valueParts.join('=');
+        envVars[key.trim()] = value.trim();
+      }
+    }
+
+    // Extract character lists from environment variables
+    const result = {
+      latin: {
+        list1: { 
+          characters: envVars.LATIN_LIST_1 || '',
+          count: (envVars.LATIN_LIST_1 || '').length
+        },
+        list2: { 
+          characters: envVars.LATIN_LIST_2 || '',
+          count: (envVars.LATIN_LIST_2 || '').length
+        },
+        list3: { 
+          characters: envVars.LATIN_LIST_3 || '',
+          count: (envVars.LATIN_LIST_3 || '').length
+        }
+      },
+      japanese: {
+        list1: {
+          characters: envVars.JAPANESE_LIST_1 || '',
+          count: (envVars.JAPANESE_LIST_1 || '').length
+        },
+        list2: {
+          characters: envVars.JAPANESE_LIST_2 || '',
+          count: (envVars.JAPANESE_LIST_2 || '').length
+        },
+        list3: {
+          characters: envVars.JAPANESE_LIST_3 || '',
+          count: (envVars.JAPANESE_LIST_3 || '').length
+        }
+      },
+      ratios: {
+        list1: (envVars.JAPANESE_LIST_1 || '').length / (envVars.LATIN_LIST_1 || '').length || 0,
+        list2: (envVars.JAPANESE_LIST_2 || '').length / (envVars.LATIN_LIST_2 || '').length || 0,
+        list3: (envVars.JAPANESE_LIST_3 || '').length / (envVars.LATIN_LIST_3 || '').length || 0
+      }
+    };
+
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ 
+      error: 'Failed to load .env file',
+      message: error.message
+    });
+  }
+});
+
 // Search files and content
 app.get('/api/search', async (req, res) => {
   try {
@@ -348,9 +784,26 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// Serve encryption test page
+app.get('/encrypt-test', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'encrypt-test.html'));
+});
+
 // Start server
 async function startServer() {
   await ensureDocumentsDir();
+  
+  // Validate Japanese and Latin list environment variables
+  console.log('\n🔧 Starting Japanese and Latin list validation...');
+  const envValidation = loadAndCheckEnvVariables();
+  
+  if (envValidation.status === 'warning') {
+    console.log(`\n⚠️  Found ${envValidation.summary.invalid} Japanese/Latin list variable(s) with issues.`);
+    console.log('Server will continue running, but please review the warnings above.\n');
+  } else {
+    console.log(`\n✅ All ${envValidation.summary.valid} Japanese/Latin list variables passed validation.\n`);
+  }
+  
   app.listen(PORT, () => {
     console.log(`File Tree Explorer running at http://localhost:${PORT}`);
   });
