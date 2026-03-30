@@ -246,12 +246,14 @@ function encryptText(text, seed = null) {
     
     // Apply the formula: rand(1, ratio) * position in list
     // Interpreting "rand(1, ratio)" as random between 1 and ratio
-    const randomMultiplier = 1 + seededRandom() * (ratio - 1);
-    const targetIndex = Math.floor(randomMultiplier * positionInList);
+    //const randomMultiplier = 1 + Math.random() * (ratio - 1);
+    //const randomMultiplier = 2;
+    const randomMultiplier = parseInt(Math.random() * ((ratio + 1) - 1) + 1);
+    //const targetIndex = Math.floor(randomMultiplier * (positionInList+1))-1;
     
     // Ensure index is within bounds
-    const safeIndex = targetIndex % japaneseList.length;
-    
+    const safeIndex = ((randomMultiplier - 1) * latinList.length) + positionInList;//targetIndex % japaneseList.length;
+    console.log(`Encrypting char "${char}" (list ${listNumber}, pos ${positionInList}) -> safeIndex: ${safeIndex} -> "${japaneseList[safeIndex]}" ratio: ${ratio.toFixed(2)} multiplier: ${randomMultiplier.toFixed(2)}`);
     encrypted += japaneseList[safeIndex];
   }
   
@@ -284,10 +286,11 @@ function decryptText(encryptedText) {
         const ratio = japaneseList.length / latinList.length;
         
         // Estimate the original position (this is approximate due to randomness)
-        const estimatedOriginalPos = Math.floor(posInJapanese / ratio);
-        const safePos = Math.min(estimatedOriginalPos, latinList.length - 1);
+        //const estimatedOriginalPos = Math.floor(posInJapanese / ratio);
+        const safePos = posInJapanese %latinList.length;//Math.min(estimatedOriginalPos, latinList.length - 1);
         
         decrypted += latinList[safePos];
+        console.log(`Decrypting char "${char}" (list ${listIndex}, pos in Japanese: ${posInJapanese}) -> safe pos: ${safePos} -> "${latinList[safePos]}" ratio: ${ratio.toFixed(2)}`);
         found = true;
         break;
       }
