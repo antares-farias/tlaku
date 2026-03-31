@@ -200,6 +200,7 @@
             <div class="test-controls">
                 <button id="loadCurrentLists" class="btn">📋 Load Current Lists</button>
                 <button id="loadFromEnv" class="btn">📄 Load from .env</button>
+                <button id="validateLists" class="btn">✅ Test Lists Validation</button>
                 <button id="testSample" class="btn btn-secondary">🔤 Test with Sample Text</button>
                 <button id="clearAll" class="btn btn-secondary">🗑️ Clear All</button>
             </div>
@@ -207,6 +208,11 @@
             <div id="ratioInfo" class="ratio-info" style="display: none;">
                 <strong>Current Ratios:</strong><br>
                 <span id="ratioDisplay"></span>
+            </div>
+
+            <div id="validationResults" class="ratio-info" style="display: none;">
+                <strong>Lists Validation Results:</strong><br>
+                <span id="validationDisplay"></span>
             </div>
 
             <div class="test-section">
@@ -287,6 +293,10 @@
 
                 document.getElementById('loadFromEnv').addEventListener('click', () => {
                     this.loadFromEnv();
+                });
+
+                document.getElementById('validateLists').addEventListener('click', () => {
+                    this.validateLists();
                 });
 
                 document.getElementById('testSample').addEventListener('click', () => {
@@ -416,6 +426,100 @@
                 document.getElementById('ratioInfo').style.display = 'block';
             }
 
+            validateLists() {
+                const results = [];
+                let allValid = true;
+
+                // Get all characters from the lists
+                const latin1 = document.getElementById('latin1').value;
+                const latin2 = document.getElementById('latin2').value;
+                const latin3 = document.getElementById('latin3').value;
+                const japanese1 = document.getElementById('japanese1').value;
+                const japanese2 = document.getElementById('japanese2').value;
+                const japanese3 = document.getElementById('japanese3').value;
+
+                // Test 1: Check if ratios are exact integers
+                const ratios = [
+                    { lat: latin1.length, jap: japanese1.length, list: 1 },
+                    { lat: latin2.length, jap: japanese2.length, list: 2 },
+                    { lat: latin3.length, jap: japanese3.length, list: 3 }
+                ];
+
+                results.push('<strong>1. Integer Ratio Test:</strong>');
+                ratios.forEach(({lat, jap, list}) => {
+                    if (lat === 0 && jap === 0) {
+                        results.push(`   List ${list}: ⚠️ EMPTY (both lists empty)`);
+                    } else if (lat === 0) {
+                        results.push(`   List ${list}: ❌ FAIL (Latin list empty, ratio undefined)`);
+                        allValid = false;
+                    } else {
+                        const ratio = jap / lat;
+                        const isInteger = ratio === Math.floor(ratio);
+                        const status = isInteger ? '✅ PASS' : '❌ FAIL';
+                        results.push(`   List ${list}: ${status} (${jap}/${lat} = ${ratio.toFixed(2)})`);
+                        if (!isInteger) allValid = false;
+                    }
+                });
+
+                // Test 2: Check for duplicate characters within Latin lists
+                results.push('<br><strong>2. Latin Lists Duplicate Test:</strong>');
+                const allLatinChars = (latin1 + latin2 + latin3).split('');
+                const latinDuplicates = this.findDuplicates(allLatinChars);
+                
+                if (latinDuplicates.length === 0) {
+                    results.push('   ✅ PASS - No duplicate characters found in Latin lists');
+                } else {
+                    results.push(`   ❌ FAIL - Found duplicate characters: ${latinDuplicates.join(', ')}`);
+                    allValid = false;
+                }
+
+                // Test 3: Check for duplicate characters within Japanese lists
+                results.push('<br><strong>3. Japanese Lists Duplicate Test:</strong>');
+                const allJapaneseChars = (japanese1 + japanese2 + japanese3).split('');
+                const japaneseDuplicates = this.findDuplicates(allJapaneseChars);
+                
+                if (japaneseDuplicates.length === 0) {
+                    results.push('   ✅ PASS - No duplicate characters found in Japanese lists');
+                } else {
+                    results.push(`   ❌ FAIL - Found duplicate characters: ${japaneseDuplicates.join(', ')}`);
+                    allValid = false;
+                }
+
+                // Overall result
+                results.push('<br><strong>Overall Result:</strong>');
+                if (allValid) {
+                    results.push('   🎉 ALL TESTS PASSED - Lists are valid!');
+                } else {
+                    results.push('   ⚠️ SOME TESTS FAILED - Please fix the issues above');
+                }
+
+                // Display results
+                const validationDisplay = document.getElementById('validationDisplay');
+                validationDisplay.innerHTML = results.join('<br>');
+                document.getElementById('validationResults').style.display = 'block';
+
+                // Show appropriate message
+                if (allValid) {
+                    this.showSuccess('All validation tests passed!');
+                } else {
+                    this.showError('Some validation tests failed. Check the results below.');
+                }
+            }
+
+            findDuplicates(array) {
+                const seen = new Set();
+                const duplicates = new Set();
+                
+                array.forEach(char => {
+                    if (seen.has(char)) {
+                        duplicates.add(char);
+                    }
+                    seen.add(char);
+                });
+                
+                return Array.from(duplicates);
+            }
+
             async encryptText() {
                 const text = document.getElementById('inputText').value;
                 const seed = document.getElementById('seedInput').value;
@@ -517,6 +621,7 @@
                 document.getElementById('encryptResult').style.display = 'none';
                 document.getElementById('decryptResult').style.display = 'none';
                 document.getElementById('ratioInfo').style.display = 'none';
+                document.getElementById('validationResults').style.display = 'none';
             }
         }
 
