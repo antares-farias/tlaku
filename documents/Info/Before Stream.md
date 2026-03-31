@@ -1,3 +1,6 @@
 # Before Stream
 
-Write your content here...
+# Before streaming
+- Check audio default output
+- Connect extra keyboard
+- 
