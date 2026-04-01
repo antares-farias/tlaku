@@ -1,4 +1,4 @@
-# Encript
+# ENCRYPTED_CONTENT
 
 
-this is an encript file
+ねゅろ緑 ろを えく らぬぺぢろゕす ぱアトら
