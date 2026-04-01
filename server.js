@@ -708,6 +708,44 @@ app.post('/api/folder', async (req, res) => {
   }
 });
 
+// Helper function to process content for encryption
+function processContentForSave(content) {
+  if (content.startsWith('# Encrypt\n') || content.startsWith('# Encrypt\r\n')) {
+    // Extract the content after the "# Encrypt" header
+    const lines = content.split(/\r?\n/);
+    const contentToEncrypt = lines.slice(1).join('\n');
+    
+    if (contentToEncrypt.trim()) {
+      // Encrypt the content and add a special header
+      const encrypted = encryptText(contentToEncrypt);
+      return `# ENCRYPTED_CONTENT\n${encrypted}`;
+    } else {
+      // If no content to encrypt, just save the header indicator
+      return '# ENCRYPTED_CONTENT\n';
+    }
+  }
+  return content;
+}
+
+// Helper function to process content for reading
+function processContentForRead(content) {
+  if (content.startsWith('# ENCRYPTED_CONTENT\n') || content.startsWith('# ENCRYPTED_CONTENT\r\n')) {
+    // Extract the encrypted content
+    const lines = content.split(/\r?\n/);
+    const encryptedContent = lines.slice(1).join('\n');
+    
+    if (encryptedContent.trim()) {
+      // Decrypt the content and add back the "# Encrypt" header
+      const decrypted = decryptText(encryptedContent);
+      return `# Encrypt\n${decrypted}`;
+    } else {
+      // If no encrypted content, just return the header
+      return '# Encrypt\n';
+    }
+  }
+  return content;
+}
+
 // Create file
 app.post('/api/file', async (req, res) => {
   try {
@@ -718,7 +756,10 @@ app.post('/api/file', async (req, res) => {
     // Ensure directory exists
     await fs.mkdir(path.dirname(fullPath), { recursive: true });
     
-    await fs.writeFile(fullPath, content, 'utf8');
+    // Process content for encryption if needed
+    const processedContent = processContentForSave(content);
+    
+    await fs.writeFile(fullPath, processedContent, 'utf8');
     
     // Commit and push changes
     const relativePath = path.join(filePath || '', fileName).replace(/\\/g, '/');
@@ -736,7 +777,11 @@ app.get('/api/file/*', async (req, res) => {
     const filePath = req.params[0];
     const fullPath = getFullPath(filePath);
     
-    const content = await fs.readFile(fullPath, 'utf8');
+    const rawContent = await fs.readFile(fullPath, 'utf8');
+    
+    // Process content for decryption if needed
+    const content = processContentForRead(rawContent);
+    
     res.json({ content });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -750,7 +795,10 @@ app.put('/api/file/*', async (req, res) => {
     const { content } = req.body;
     const fullPath = getFullPath(filePath);
     
-    await fs.writeFile(fullPath, content, 'utf8');
+    // Process content for encryption if needed
+    const processedContent = processContentForSave(content);
+    
+    await fs.writeFile(fullPath, processedContent, 'utf8');
     
     // Commit and push changes
     await commitAndPush(`Update file: ${filePath}`);
