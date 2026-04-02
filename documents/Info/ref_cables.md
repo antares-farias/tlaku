@@ -1,3 +1,8 @@
 # ref_cables
 
-Write your content here...
+
+verde       usb
+amarillo    energia
+rojo        hdmi
+gris        misc
+blanco      red
