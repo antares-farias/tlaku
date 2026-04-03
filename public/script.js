@@ -93,7 +93,55 @@ class FileTreeExplorer {
         document.getElementById('modalCreate').addEventListener('click', () => {
             this.createItem();
         });
+
+        // Notification modal events
+        document.getElementById('notificationClose').addEventListener('click', () => {
+            this.hideNotificationModal();
+        });
         
+        document.getElementById('notificationOk').addEventListener('click', () => {
+            this.hideNotificationModal();
+        });
+
+        // Confirmation modal events
+        document.getElementById('confirmationClose').addEventListener('click', () => {
+            this.hideConfirmationModal();
+        });
+        
+        document.getElementById('confirmationCancel').addEventListener('click', () => {
+            const modal = document.getElementById('confirmationModal');
+            if (modal._onCancel) {
+                modal._onCancel();
+            }
+            this.hideConfirmationModal();
+        });
+        
+        document.getElementById('confirmationConfirm').addEventListener('click', () => {
+            const modal = document.getElementById('confirmationModal');
+            if (modal._onConfirm) {
+                modal._onConfirm();
+            }
+        });
+
+        // Close modals when clicking outside
+        document.getElementById('modal').addEventListener('click', (e) => {
+            if (e.target.id === 'modal') {
+                this.hideModal();
+            }
+        });
+
+        document.getElementById('notificationModal').addEventListener('click', (e) => {
+            if (e.target.id === 'notificationModal') {
+                this.hideNotificationModal();
+            }
+        });
+
+        document.getElementById('confirmationModal').addEventListener('click', (e) => {
+            if (e.target.id === 'confirmationModal') {
+                this.hideConfirmationModal();
+            }
+        });
+
         // Modal keyboard events
         document.getElementById('itemName').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
@@ -101,10 +149,21 @@ class FileTreeExplorer {
             }
         });
 
-        // Close modal when clicking outside
-        document.getElementById('modal').addEventListener('click', (e) => {
-            if (e.target.id === 'modal') {
-                this.hideModal();
+        // Global keyboard events for modals
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                // Close any open modals
+                const modal = document.getElementById('modal');
+                const notificationModal = document.getElementById('notificationModal');
+                const confirmationModal = document.getElementById('confirmationModal');
+                
+                if (!modal.classList.contains('hidden')) {
+                    this.hideModal();
+                } else if (!notificationModal.classList.contains('hidden')) {
+                    this.hideNotificationModal();
+                } else if (!confirmationModal.classList.contains('hidden')) {
+                    this.hideConfirmationModal();
+                }
             }
         });
 
@@ -524,10 +583,15 @@ class FileTreeExplorer {
     }
 
     showContextMenu(event, item) {
-        // Simple delete confirmation for now
-        if (confirm(`Are you sure you want to delete "${item.name}"?`)) {
-            this.deleteItem(item);
-        }
+        // Show confirmation modal for delete
+        this.showConfirmation(
+            'Delete Item',
+            `Are you sure you want to delete "${item.name}"? This action cannot be undone.`,
+            () => {
+                this.deleteItem(item);
+                this.hideConfirmationModal();
+            }
+        );
     }
 
     async deleteItem(item) {
@@ -661,13 +725,84 @@ class FileTreeExplorer {
     }
 
     showError(message) {
-        // Simple error notification - in a real app, you'd use a proper notification system
-        alert('Error: ' + message);
+        this.showNotification('error', 'Error', message);
     }
 
     showSuccess(message) {
-        // Simple success notification - in a real app, you'd use a proper notification system
-        alert('Success: ' + message);
+        this.showNotification('success', 'Success', message);
+    }
+
+    showNotification(type, title, message) {
+        const modal = document.getElementById('notificationModal');
+        const modalContent = modal.querySelector('.modal-content');
+        const titleElement = document.getElementById('notificationTitle');
+        const iconElement = document.getElementById('notificationIcon');
+        const messageElement = document.getElementById('notificationMessage');
+        
+        // Reset classes
+        modal.className = 'modal notification-modal';
+        iconElement.className = 'notification-icon';
+        
+        // Set type-specific styling and icon
+        modal.classList.add(type);
+        iconElement.classList.add(type);
+        
+        let icon = '';
+        switch (type) {
+            case 'error':
+                icon = '<i class="fas fa-times-circle"></i>';
+                break;
+            case 'success':
+                icon = '<i class="fas fa-check-circle"></i>';
+                break;
+            case 'warning':
+                icon = '<i class="fas fa-exclamation-circle"></i>';
+                break;
+            case 'info':
+            default:
+                icon = '<i class="fas fa-info-circle"></i>';
+                break;
+        }
+        
+        titleElement.textContent = title;
+        iconElement.innerHTML = icon;
+        messageElement.textContent = message;
+        
+        modal.classList.remove('hidden');
+        
+        // Auto-close for success messages after 3 seconds
+        if (type === 'success') {
+            setTimeout(() => {
+                this.hideNotificationModal();
+            }, 3000);
+        }
+    }
+
+    hideNotificationModal() {
+        const modal = document.getElementById('notificationModal');
+        modal.classList.add('hidden');
+    }
+
+    showConfirmation(title, message, onConfirm, onCancel = null) {
+        const modal = document.getElementById('confirmationModal');
+        const titleElement = document.getElementById('confirmationTitle');
+        const messageElement = document.getElementById('confirmationMessage');
+        
+        titleElement.textContent = title;
+        messageElement.textContent = message;
+        
+        modal.classList.remove('hidden');
+        
+        // Store callbacks temporarily
+        modal._onConfirm = onConfirm;
+        modal._onCancel = onCancel;
+    }
+
+    hideConfirmationModal() {
+        const modal = document.getElementById('confirmationModal');
+        modal.classList.add('hidden');
+        modal._onConfirm = null;
+        modal._onCancel = null;
     }
 
     // Search functionality methods

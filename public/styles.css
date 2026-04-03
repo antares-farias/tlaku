@@ -635,6 +635,79 @@ header h1 i {
     color: var(--text-secondary);
 }
 
+/* Notification Modal Styles */
+.notification-modal .modal-content {
+    max-width: 400px;
+    border-left: 4px solid var(--accent-blue);
+}
+
+.notification-modal.error .modal-content {
+    border-left-color: #e74c3c;
+}
+
+.notification-modal.success .modal-content {
+    border-left-color: #27ae60;
+}
+
+.notification-modal.warning .modal-content {
+    border-left-color: #f39c12;
+}
+
+.notification-icon {
+    text-align: center;
+    margin-bottom: 1rem;
+}
+
+.notification-icon i {
+    font-size: 2.5rem;
+}
+
+.notification-icon.error i {
+    color: #e74c3c;
+}
+
+.notification-icon.success i {
+    color: #27ae60;
+}
+
+.notification-icon.warning i {
+    color: #f39c12;
+}
+
+.notification-icon.info i {
+    color: var(--accent-blue);
+}
+
+#notificationMessage {
+    text-align: center;
+    font-size: 1.1rem;
+    line-height: 1.5;
+    color: var(--text-primary);
+}
+
+/* Confirmation Modal Styles */
+.confirmation-modal .modal-content {
+    max-width: 450px;
+    border-left: 4px solid #f39c12;
+}
+
+.confirmation-icon {
+    text-align: center;
+    margin-bottom: 1rem;
+}
+
+.confirmation-icon i {
+    font-size: 2.5rem;
+    color: #f39c12;
+}
+
+#confirmationMessage {
+    text-align: center;
+    font-size: 1.1rem;
+    line-height: 1.5;
+    color: var(--text-primary);
+}
+
 .modal-body {
     padding: 1.5rem;
 }
