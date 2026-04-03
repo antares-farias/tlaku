@@ -93,6 +93,102 @@ header h1 i {
     align-items: center;
 }
 
+/* Location selector styles */
+.location-selector {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 0.5rem;
+    margin-right: 0.5rem;
+    transition: all 0.2s ease;
+}
+
+.location-selector:hover {
+    background: var(--hover-bg);
+}
+
+.location-selector i {
+    color: var(--accent-blue);
+    font-size: 0.9rem;
+}
+
+.location-dropdown {
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    cursor: pointer;
+    outline: none;
+    min-width: 120px;
+    background-image: none;
+}
+
+.location-dropdown:focus {
+    outline: none;
+}
+
+.location-dropdown option {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    padding: 0.5rem;
+}
+
+/* Modal location selector styles */
+.path-info {
+    margin-top: 1rem;
+}
+
+.path-info label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.modal-location-selector {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 0.5rem;
+    transition: all 0.2s ease;
+}
+
+.modal-location-selector:hover {
+    background: var(--hover-bg);
+}
+
+.modal-location-selector i {
+    color: var(--accent-blue);
+    font-size: 0.9rem;
+}
+
+.modal-location-dropdown {
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    cursor: pointer;
+    outline: none;
+    width: 100%;
+    background-image: none;
+}
+
+.modal-location-dropdown:focus {
+    outline: none;
+}
+
+.modal-location-dropdown option {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    padding: 0.5rem;
+}
+
 /* Theme toggle button */
 .theme-toggle {
     background: var(--bg-tertiary);

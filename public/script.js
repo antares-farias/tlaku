@@ -22,6 +22,11 @@ class FileTreeExplorer {
     }
 
     bindEvents() {
+        // Location dropdown
+        document.getElementById('locationDropdown').addEventListener('change', (e) => {
+            this.changeLocation(e.target.value);
+        });
+
         // Theme toggle
         document.getElementById('themeToggle').addEventListener('click', () => {
             this.toggleTheme();
@@ -199,6 +204,7 @@ class FileTreeExplorer {
             const tree = await response.json();
             this.originalTree = tree; // Store original data for searching
             this.filteredTree = tree; // Initial filtered data is same as original
+            this.populateLocationDropdown(tree);
             this.renderFileTreeWithHighlight(this.filteredTree);
         } catch (error) {
             this.showError('Failed to load file tree: ' + error.message);
@@ -321,11 +327,111 @@ class FileTreeExplorer {
         
         if (item.type === 'folder') {
             this.currentPath = item.path;
+            this.updateLocationDropdown();
             this.hideFileViewer();
         } else {
             this.currentFile = item;
             this.loadFile(item.path);
         }
+    }
+
+    populateLocationDropdown(tree) {
+        const dropdown = document.getElementById('locationDropdown');
+        dropdown.innerHTML = '<option value="">Root</option>';
+        
+        const folders = this.extractFolders(tree);
+        folders.forEach(folder => {
+            const option = document.createElement('option');
+            option.value = folder.path;
+            option.textContent = folder.path || 'Root';
+            dropdown.appendChild(option);
+        });
+        
+        // Set current selection
+        dropdown.value = this.currentPath || '';
+    }
+    
+    extractFolders(tree, folders = []) {
+        tree.forEach(item => {
+            if (item.type === 'folder') {
+                folders.push(item);
+                if (item.children) {
+                    this.extractFolders(item.children, folders);
+                }
+            }
+        });
+        return folders;
+    }
+    
+    updateLocationDropdown() {
+        const dropdown = document.getElementById('locationDropdown');
+        dropdown.value = this.currentPath || '';
+    }
+    
+    changeLocation(path) {
+        // Update current path
+        this.currentPath = path;
+        
+        // Clear any current file selection
+        this.currentFile = null;
+        this.hideFileViewer();
+        
+        // Find and select the folder in the tree
+        if (path) {
+            const folderElement = document.querySelector(`[data-path="${path}"]`);
+            if (folderElement) {
+                const treeItem = folderElement.closest('.tree-item');
+                if (treeItem) {
+                    // Remove previous selections
+                    document.querySelectorAll('.tree-item.selected').forEach(el => {
+                        el.classList.remove('selected');
+                    });
+                    
+                    // Select the new folder
+                    treeItem.classList.add('selected');
+                    
+                    // Expand parent folders if necessary
+                    this.expandPathToFolder(path);
+                    
+                    // Scroll to the selected folder
+                    treeItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }
+        } else {
+            // Root selected - clear all selections
+            document.querySelectorAll('.tree-item.selected').forEach(el => {
+                el.classList.remove('selected');
+            });
+        }
+    }
+    
+    expandPathToFolder(targetPath) {
+        const pathParts = targetPath.split('/');
+        let currentPath = '';
+        
+        for (let i = 0; i < pathParts.length - 1; i++) {
+            currentPath += (currentPath ? '/' : '') + pathParts[i];
+            this.collapsedFolders.delete(currentPath);
+        }
+        
+        // Refresh the tree to show expanded folders
+        this.renderFileTreeWithHighlight(this.filteredTree);
+    }
+    
+    populateModalLocationDropdown() {
+        const dropdown = document.getElementById('modalLocationDropdown');
+        dropdown.innerHTML = '<option value="">Root</option>';
+        
+        const folders = this.extractFolders(this.originalTree || []);
+        folders.forEach(folder => {
+            const option = document.createElement('option');
+            option.value = folder.path;
+            option.textContent = folder.path || 'Root';
+            dropdown.appendChild(option);
+        });
+        
+        // Set current path as selected
+        dropdown.value = this.currentPath || '';
     }
 
     toggleFolder(folderPath, itemElement) {
@@ -527,8 +633,10 @@ class FileTreeExplorer {
             type === 'folder' ? 'Create New Folder' : 'Create New Document';
         document.getElementById('itemName').placeholder = 
             type === 'folder' ? 'Enter folder name...' : 'Enter document name...';
-        document.getElementById('currentPath').textContent = this.currentPath || '/';
         document.getElementById('itemName').value = '';
+        
+        // Populate and set the modal location dropdown
+        this.populateModalLocationDropdown();
         
         document.getElementById('modal').classList.remove('hidden');
         document.getElementById('modal').dataset.type = type;
@@ -542,6 +650,7 @@ class FileTreeExplorer {
     async createItem() {
         const type = document.getElementById('modal').dataset.type;
         const name = document.getElementById('itemName').value.trim();
+        const selectedPath = document.getElementById('modalLocationDropdown').value;
         
         if (!name) {
             this.showError('Please enter a name');
@@ -553,7 +662,7 @@ class FileTreeExplorer {
             
             const endpoint = type === 'folder' ? '/api/folder' : '/api/file';
             const body = {
-                path: this.currentPath,
+                path: selectedPath,
                 name: name,
                 content: type === 'file' ? '# ' + name + '\n\nWrite your content here...' : undefined
             };

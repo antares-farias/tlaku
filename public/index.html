@@ -12,6 +12,12 @@
         <header>
             <h1><i class="fas fa-folder-tree"></i> File Tree Explorer</h1>
             <div class="toolbar">
+                <div class="location-selector">
+                    <i class="fas fa-map-marker-alt"></i>
+                    <select id="locationDropdown" class="location-dropdown" title="Change current location">
+                        <option value="">Root</option>
+                    </select>
+                </div>
                 <button id="themeToggle" class="theme-toggle" title="Toggle Dark Theme">
                     <i class="fas fa-moon"></i>
                 </button>
@@ -145,7 +151,13 @@
                 <label for="itemName">Name:</label>
                 <input type="text" id="itemName" placeholder="Enter name...">
                 <div id="pathInfo" class="path-info">
-                    <strong>Location:</strong> <span id="currentPath">/</span>
+                    <label for="modalLocationDropdown"><strong>Location:</strong></label>
+                    <div class="modal-location-selector">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <select id="modalLocationDropdown" class="modal-location-dropdown">
+                            <option value="">Root</option>
+                        </select>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
